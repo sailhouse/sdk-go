@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	sailhouse "github.com/sailhouse/sdk-go"
+	"github.com/sailhouse/sdk-go/sailhouse"
 )
 
 func main() {
