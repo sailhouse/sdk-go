@@ -42,6 +42,7 @@ func NewSailhouseClientWithOptions(opts SailhouseClientOptions) *SailhouseClient
 
 func (c *SailhouseClient) do(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Authorization", c.token)
+	req.Header.Set("x-source", "sailhouse-go")
 
 	return c.client.Do(req)
 }
