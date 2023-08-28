@@ -1,11 +1,11 @@
 # Sailhouse SDK - Go
 
+## Publish
 ```go
-client := sailhouse.NewClient("token")
+client := sailhouse.NewSailhouseClient("YOUR_TOKEN")
 
-data := map[string]string {
-    "some-property": false,
+data := map[string]interface{}{
+    "greeting": "hello world!",
 }
-
-client.Publish("topic", data)
+err := client.Publish(context.Background(), "topic", data)
 ```
