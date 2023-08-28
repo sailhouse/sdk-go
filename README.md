@@ -1,5 +1,5 @@
 # Sailhouse SDK - Go
-To get started, follow the steps in [Sailhouse Document](https://docs.sailhouse.dev/getting-started/setup) to create `topic`, `subscription` and `token`.  
+To get started, follow the steps in the [Sailhouse documentation](https://docs.sailhouse.dev/getting-started/setup). You'll need to create an application and a token before using the SDK.
 ## Publish
 ```go
 client := sailhouse.NewSailhouseClient("YOUR_TOKEN")
