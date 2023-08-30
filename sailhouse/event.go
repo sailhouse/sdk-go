@@ -1,6 +1,7 @@
 package sailhouse
 
 import (
+	"context"
 	"encoding/json"
 )
 
@@ -37,6 +38,6 @@ func (e *Event) As(data any) error {
 	return nil
 }
 
-func (e *Event) Ack() {
-	e.client.AcknowledgeMessage(e.topic, e.subscription, e.ID)
+func (e *Event) Ack(ctx context.Context) error {
+	return e.client.AcknowledgeMessage(ctx, e.topic, e.subscription, e.ID)
 }

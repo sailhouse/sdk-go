@@ -2,6 +2,7 @@ package sailhouse
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,11 +86,10 @@ func WithTimeWindow(dur time.Duration) getOption {
 	}
 }
 
-func (c *SailhouseClient) GetEvents(topic, subscription string, opts ...getOption) (GetEventsResponse, error) {
-	url := fmt.Sprintf("/topics/%s/subscriptions/%s/events", topic, subscription)
-	endpoint := BaseURL + url
+func (c *SailhouseClient) GetEvents(ctx context.Context, topic, subscription string, opts ...getOption) (GetEventsResponse, error) {
+	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events", BaseURL, topic, subscription)
 
-	req, err := http.NewRequest("GET", endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return GetEventsResponse{}, err
 	}
@@ -122,9 +122,8 @@ func (c *SailhouseClient) GetEvents(topic, subscription string, opts ...getOptio
 	return dest, nil
 }
 
-func (c *SailhouseClient) Publish(topic string, data interface{}) error {
-	url := fmt.Sprintf("/topics/%s/events", topic)
-	endpoint := BaseURL + url
+func (c *SailhouseClient) Publish(ctx context.Context, topic string, data interface{}) error {
+	endpoint := fmt.Sprintf("%s/topics/%s/events", BaseURL, topic)
 
 	body := map[string]interface{}{
 		"data": data,
@@ -135,7 +134,7 @@ func (c *SailhouseClient) Publish(topic string, data interface{}) error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(jsonBody))
 	if err != nil {
 		return err
 	}
@@ -163,11 +162,10 @@ func (c *SailhouseClient) Publish(topic string, data interface{}) error {
 	return nil
 }
 
-func (c *SailhouseClient) AcknowledgeMessage(topic string, subscription string, id string) error {
-	url := fmt.Sprintf("/topics/%s/subscriptions/%s/events/%s", topic, subscription, id)
-	endpoint := BaseURL + url
+func (c *SailhouseClient) AcknowledgeMessage(ctx context.Context, topic string, subscription string, id string) error {
+	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events/%s", BaseURL, topic, subscription, id)
 
-	req, err := http.NewRequest("POST", endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, nil)
 	if err != nil {
 		return err
 	}
