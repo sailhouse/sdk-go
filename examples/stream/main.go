@@ -41,6 +41,8 @@ func main() {
 			}
 		case err := <-errs:
 			panic(err)
+		case <-ctx.Done():
+			return
 		}
 	}
 }

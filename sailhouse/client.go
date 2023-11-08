@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -192,9 +193,11 @@ func (c *SailhouseClient) StreamEvents(ctx context.Context, topic string, subscr
 	events := make(chan Event)
 	errs := make(chan error)
 
+	messages := make(chan []byte)
+
 	u := url.URL{Scheme: "wss", Host: "api.sailhouse.dev", Path: "/events/stream"}
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
 	if err != nil {
 		errs <- fmt.Errorf("failed to connect to websocket: %w", err)
 		return events, errs
@@ -211,21 +214,32 @@ func (c *SailhouseClient) StreamEvents(ctx context.Context, topic string, subscr
 	}
 
 	go func() {
+		for {
+			_, message, err := conn.ReadMessage()
+			if err != nil {
+				if strings.Contains(err.Error(), "use of closed network connection") {
+					return
+				}
+				errs <- fmt.Errorf("failed to read message: %w", err)
+				return
+			}
+
+			messages <- message
+		}
+	}()
+
+	go func() {
 		defer func() {
 			conn.Close()
+			close(messages)
+			close(errs)
 		}()
 
 		for {
 			select {
 			case <-done:
 				return
-			default:
-				_, message, err := conn.ReadMessage()
-				if err != nil {
-					errs <- fmt.Errorf("failed to read message: %w", err)
-					return
-				}
-
+			case message := <-messages:
 				var eventResponse EventResponse
 				err = json.Unmarshal(message, &eventResponse)
 				if err != nil {
