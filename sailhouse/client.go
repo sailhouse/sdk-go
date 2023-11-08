@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type SailhouseClient struct {
@@ -21,6 +24,8 @@ type SailhouseClientOptions struct {
 	Client *http.Client
 	Token  string
 }
+
+type Map map[string]interface{}
 
 func NewSailhouseClient(token string) *SailhouseClient {
 	return NewSailhouseClientWithOptions(SailhouseClientOptions{
@@ -175,9 +180,71 @@ func (c *SailhouseClient) AcknowledgeMessage(ctx context.Context, topic string, 
 		return err
 	}
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != 200 && res.StatusCode != 204 {
 		return fmt.Errorf("failed to acknowledge message: %d", res.StatusCode)
 	}
 
 	return nil
+}
+
+func (c *SailhouseClient) StreamEvents(ctx context.Context, topic string, subscription string) (<-chan Event, <-chan error) {
+	done := ctx.Done()
+	events := make(chan Event)
+	errs := make(chan error)
+
+	u := url.URL{Scheme: "wss", Host: "api.sailhouse.dev", Path: "/events/stream"}
+
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		errs <- fmt.Errorf("failed to connect to websocket: %w", err)
+		return events, errs
+	}
+
+	err = conn.WriteJSON(map[string]interface{}{
+		"topic_slug":        topic,
+		"subscription_slug": subscription,
+		"token":             c.token,
+	})
+	if err != nil {
+		errs <- fmt.Errorf("failed to send auth message: %w", err)
+		return events, errs
+	}
+
+	go func() {
+		defer func() {
+			conn.Close()
+		}()
+
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				_, message, err := conn.ReadMessage()
+				if err != nil {
+					errs <- fmt.Errorf("failed to read message: %w", err)
+					return
+				}
+
+				var eventResponse EventResponse
+				err = json.Unmarshal(message, &eventResponse)
+				if err != nil {
+					errs <- fmt.Errorf("failed to unmarshal message: %w", err)
+					return
+				}
+
+				event := Event{
+					ID:           eventResponse.ID,
+					Data:         eventResponse.Data,
+					topic:        topic,
+					subscription: subscription,
+					client:       c,
+				}
+
+				events <- event
+			}
+		}
+	}()
+
+	return events, errs
 }
