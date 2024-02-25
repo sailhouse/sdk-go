@@ -128,11 +128,36 @@ func (c *SailhouseClient) GetEvents(ctx context.Context, topic, subscription str
 	return dest, nil
 }
 
-func (c *SailhouseClient) Publish(ctx context.Context, topic string, data interface{}) error {
+type publishOpt struct {
+	mod func(data *map[string]any)
+}
+
+func WithScheduledTime(sendAt time.Time) publishOpt {
+	return publishOpt{
+		mod: func(data *map[string]any) {
+			timeString := sendAt.Format(time.RFC3339)
+			(*data)["send_at"] = timeString
+		},
+	}
+}
+
+func WithMetaData(data map[string]interface{}) publishOpt {
+	return publishOpt{
+		mod: func(body *map[string]any) {
+			(*body)["metadata"] = data
+		},
+	}
+}
+
+func (c *SailhouseClient) Publish(ctx context.Context, topic string, data interface{}, opts ...publishOpt) error {
 	endpoint := fmt.Sprintf("%s/topics/%s/events", BaseURL, topic)
 
 	body := map[string]interface{}{
 		"data": data,
+	}
+
+	for _, opt := range opts {
+		opt.mod(&body)
 	}
 
 	jsonBody, err := json.Marshal(body)

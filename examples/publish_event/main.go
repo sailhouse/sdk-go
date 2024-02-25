@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/sailhouse/sdk-go/sailhouse"
 	"time"
+
+	"github.com/sailhouse/sdk-go/sailhouse"
 )
 
 func main() {
@@ -26,7 +27,7 @@ func main() {
 	}
 
 	// Publish
-	err := client.Publish(ctx, *topic, data)
+	err := client.Publish(ctx, *topic, data, sailhouse.WithScheduledTime(time.Now().Add(time.Hour*48)))
 	if err != nil {
 		panic(err)
 	}
