@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: 3
+
+tasks:
+  example-subscribe:
+    dir: ./examples
+    dotenv:
+      - ".env"
+    cmds:
+      - go run ./subscribe/
+  example-publish:
+    dir: ./examples
+    dotenv:
+      - ".env"
+    cmds:
+      - go run ./publish_event/

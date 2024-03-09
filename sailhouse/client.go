@@ -287,3 +287,52 @@ func (c *SailhouseClient) StreamEvents(ctx context.Context, topic string, subscr
 
 	return events, errs
 }
+
+type SubscriptionOptions struct {
+	OnError   func(error)
+	ExitOnErr bool
+}
+
+type SubscriptionHandler func(context.Context, *Event)
+
+// Subscribe to a topic and subscription in the background, calling the handler function when new events are received.
+//
+// If an error is encountered, the `OnError` function within the SubscriptionOptions will be called.
+func (c *SailhouseClient) Subscribe(ctx context.Context, topic string, subscription string, handler SubscriptionHandler, opts *SubscriptionOptions) {
+	pollingInterval := 5 * time.Second
+	doneChan := ctx.Done()
+	errHandler := func(err error) {
+	}
+	exitOnErr := false
+
+	if opts != nil {
+		if opts.OnError != nil {
+			errHandler = opts.OnError
+		}
+
+		exitOnErr = opts.ExitOnErr
+	}
+
+	go func() {
+		for {
+			select {
+			case <-time.After(pollingInterval):
+				events, err := c.GetEvents(ctx, topic, subscription)
+				if err != nil {
+					errHandler(err)
+					if exitOnErr {
+						break
+					} else {
+						continue
+					}
+				}
+
+				for _, event := range events.Events {
+					handler(ctx, event)
+				}
+			case <-doneChan:
+				return
+			}
+		}
+	}()
+}
