@@ -92,6 +92,40 @@ func WithTimeWindow(dur time.Duration) getOption {
 	}
 }
 
+func (c *SailhouseClient) PullEvent(ctx context.Context, topic, subscription string) (*Event, error) {
+	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events/pull", BaseURL, topic, subscription)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := c.do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode == 204 {
+		return nil, nil
+	}
+
+	if res.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get events: %d", res.StatusCode)
+	}
+
+	var dest Event
+	err = json.NewDecoder(res.Body).Decode(&dest)
+	if err != nil {
+		return nil, err
+	}
+
+	dest.client = c
+	dest.topic = topic
+	dest.subscription = subscription
+
+	return &dest, nil
+}
+
 func (c *SailhouseClient) GetEvents(ctx context.Context, topic, subscription string, opts ...getOption) (GetEventsResponse, error) {
 	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events", BaseURL, topic, subscription)
 
@@ -301,35 +335,40 @@ type SubscriptionHandler func(context.Context, *Event)
 func (c *SailhouseClient) Subscribe(ctx context.Context, topic string, subscription string, handler SubscriptionHandler, opts *SubscriptionOptions) {
 	pollingInterval := 5 * time.Second
 	doneChan := ctx.Done()
-	errHandler := func(err error) {
-	}
+	errHandler := func(err error) {}
 	exitOnErr := false
 
 	if opts != nil {
 		if opts.OnError != nil {
 			errHandler = opts.OnError
 		}
-
 		exitOnErr = opts.ExitOnErr
 	}
 
 	go func() {
 		for {
+			event, err := c.PullEvent(ctx, topic, subscription)
+			if err != nil {
+				errHandler(err)
+				if exitOnErr {
+					return
+				}
+				select {
+				case <-time.After(pollingInterval):
+					continue
+				case <-doneChan:
+					return
+				}
+			}
+
+			if event != nil {
+				handler(ctx, event)
+				continue
+			}
+
 			select {
 			case <-time.After(pollingInterval):
-				events, err := c.GetEvents(ctx, topic, subscription)
-				if err != nil {
-					errHandler(err)
-					if exitOnErr {
-						break
-					} else {
-						continue
-					}
-				}
-
-				for _, event := range events.Events {
-					handler(ctx, event)
-				}
+				continue
 			case <-doneChan:
 				return
 			}
