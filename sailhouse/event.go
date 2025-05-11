@@ -16,6 +16,14 @@ type EventResponse struct {
 	Data map[string]interface{} `json:"data"`
 }
 
+type PublishResponse struct {
+	ID string `json:"id"`
+}
+
+type WaitGroupInstanceResponse struct {
+	WaitGroupInstanceID string `json:"wait_group_instance_id"`
+}
+
 type Event struct {
 	ID           string                 `json:"id"`
 	Data         map[string]interface{} `json:"data"`
