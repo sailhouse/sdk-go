@@ -27,7 +27,12 @@ func main() {
 	}
 
 	// Publish
-	err := client.Publish(ctx, *topic, data)
+	_, err := client.Publish(
+		ctx,
+		*topic,
+		data,
+		sailhouse.WithScheduledTime(time.Now().Add(time.Hour*24*5)),
+	)
 	if err != nil {
 		panic(err)
 	}

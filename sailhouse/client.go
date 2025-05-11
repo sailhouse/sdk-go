@@ -26,7 +26,7 @@ type SailhouseClientOptions struct {
 	Token  string
 }
 
-type Map map[string]interface{}
+type Map map[string]any
 
 func NewSailhouseClient(token string) *SailhouseClient {
 	return NewSailhouseClientWithOptions(SailhouseClientOptions{
@@ -141,7 +141,7 @@ func WithScheduledTime(sendAt time.Time) publishOpt {
 	}
 }
 
-func WithMetaData(data map[string]interface{}) publishOpt {
+func WithMetaData(data map[string]any) publishOpt {
 	return publishOpt{
 		mod: func(body *map[string]any) {
 			(*body)["metadata"] = data
@@ -149,10 +149,37 @@ func WithMetaData(data map[string]interface{}) publishOpt {
 	}
 }
 
-func (c *SailhouseClient) Publish(ctx context.Context, topic string, data interface{}, opts ...publishOpt) error {
+func WithWaitGroupInstanceID(id string) publishOpt {
+	return publishOpt{
+		mod: func(body *map[string]any) {
+			(*body)["wait_group_instance_id"] = id
+		},
+	}
+}
+
+type WaitEvent struct {
+	Topic    string
+	Body     any
+	Metadata map[string]any
+	SendAt   *time.Time
+}
+
+type WaitOption struct {
+	mod func(data *map[string]any)
+}
+
+func WithTTL(ttl string) WaitOption {
+	return WaitOption{
+		mod: func(data *map[string]any) {
+			(*data)["ttl"] = ttl
+		},
+	}
+}
+
+func (c *SailhouseClient) Publish(ctx context.Context, topic string, data any, opts ...publishOpt) (*PublishResponse, error) {
 	endpoint := fmt.Sprintf("%s/topics/%s/events", BaseURL, topic)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"data": data,
 	}
 
@@ -162,19 +189,19 @@ func (c *SailhouseClient) Publish(ctx context.Context, topic string, data interf
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(jsonBody))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	res, err := c.do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if res.StatusCode != 201 {
@@ -183,14 +210,20 @@ func (c *SailhouseClient) Publish(ctx context.Context, topic string, data interf
 
 		b, err := io.ReadAll(res.Body)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		resText = string(b)
-		return fmt.Errorf("failed to send message: %d - %s", res.StatusCode, resText)
+		return nil, fmt.Errorf("failed to send message: %d - %s", res.StatusCode, resText)
 	}
 
-	return nil
+	var response PublishResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &response, nil
 }
 
 func (c *SailhouseClient) AcknowledgeMessage(ctx context.Context, topic string, subscription string, id string) error {
@@ -228,7 +261,7 @@ func (c *SailhouseClient) StreamEvents(ctx context.Context, topic string, subscr
 		return events, errs
 	}
 
-	err = conn.WriteJSON(map[string]interface{}{
+	err = conn.WriteJSON(map[string]any{
 		"topic_slug":        topic,
 		"subscription_slug": subscription,
 		"token":             c.token,
@@ -335,4 +368,107 @@ func (c *SailhouseClient) Subscribe(ctx context.Context, topic string, subscript
 			}
 		}
 	}()
+}
+
+// Wait creates a wait group, publishes all events with the wait group ID, and marks the wait group as in progress.
+// It allows you to publish multiple events across different topics and wait for all of them to be processed before proceeding.
+func (c *SailhouseClient) Wait(ctx context.Context, topic string, events []WaitEvent, opts ...WaitOption) error {
+	// Create wait group instance
+	endpoint := fmt.Sprintf("%s/waitgroups/instances", BaseURL)
+
+	body := map[string]any{
+		"topic": topic,
+	}
+
+	for _, opt := range opts {
+		opt.mod(&body)
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(jsonBody))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := c.do(req)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		resText := ""
+		defer res.Body.Close()
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+
+		resText = string(b)
+		return fmt.Errorf("failed to create wait group: %d - %s", res.StatusCode, resText)
+	}
+
+	var response WaitGroupInstanceResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+
+	waitGroupID := response.WaitGroupInstanceID
+
+	// Publish all events with the wait group ID
+	for _, event := range events {
+		var publishOpts []publishOpt
+
+		if event.Metadata != nil {
+			publishOpts = append(publishOpts, WithMetaData(event.Metadata))
+		}
+
+		if event.SendAt != nil {
+			publishOpts = append(publishOpts, WithScheduledTime(*event.SendAt))
+		}
+
+		publishOpts = append(publishOpts, WithWaitGroupInstanceID(waitGroupID))
+
+		_, err := c.Publish(ctx, event.Topic, event.Body, publishOpts...)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Mark wait group as in progress
+	endpoint = fmt.Sprintf("%s/waitgroups/instances/%s/events", BaseURL, waitGroupID)
+
+	req, err = http.NewRequestWithContext(ctx, "PUT", endpoint, bytes.NewReader([]byte("{}")))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err = c.do(req)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		resText := ""
+		defer res.Body.Close()
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+
+		resText = string(b)
+		return fmt.Errorf("failed to mark wait group as in progress: %d - %s", res.StatusCode, resText)
+	}
+
+	return nil
 }
