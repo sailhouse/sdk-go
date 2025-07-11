@@ -4,8 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/sailhouse/sdk-go/sailhouse"
 	"time"
+
+	"github.com/sailhouse/sdk-go/sailhouse"
 )
 
 func main() {
@@ -35,7 +36,19 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(fmt.Sprintf("Event: %v", data))
+
+		fmt.Printf("Event ID: %s\n", event.ID)
+		fmt.Printf("Event Data: %v\n", data)
+
+		// Display metadata if present
+		if event.Metadata != nil && len(event.Metadata) > 0 {
+			fmt.Printf("Event Metadata: %v\n", event.Metadata)
+		} else {
+			fmt.Println("No metadata present")
+		}
+
+		fmt.Println("---")
+
 		err = event.Ack(ctx)
 		if err != nil {
 			panic(err)

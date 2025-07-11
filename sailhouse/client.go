@@ -342,6 +342,7 @@ func (c *SailhouseClient) StreamEvents(ctx context.Context, topic string, subscr
 				event := Event{
 					ID:           eventResponse.ID,
 					Data:         eventResponse.Data,
+					Metadata:     eventResponse.Metadata,
 					topic:        topic,
 					subscription: subscription,
 					client:       c,

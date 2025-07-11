@@ -22,7 +22,7 @@ func NewMockSailhouseServer() *MockSailhouseServer {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", mock.routeHandler)
-	
+
 	mock.Server = httptest.NewServer(mux)
 	return mock
 }
@@ -30,12 +30,12 @@ func NewMockSailhouseServer() *MockSailhouseServer {
 // routeHandler routes requests to registered handlers
 func (m *MockSailhouseServer) routeHandler(w http.ResponseWriter, r *http.Request) {
 	key := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
-	
+
 	if handler, exists := m.handlers[key]; exists {
 		handler(w, r)
 		return
 	}
-	
+
 	// Default 404 response
 	w.WriteHeader(http.StatusNotFound)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -57,7 +57,7 @@ func (m *MockSailhouseServer) RegisterPullEventHandler(topic, subscription strin
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(event)
 	})
@@ -98,11 +98,20 @@ func (m *MockSailhouseServer) CreateTestClient() *SailhouseClient {
 	return client
 }
 
-// TestEvent creates a test event with data
+// CreateTestEvent creates a test event with data
 func CreateTestEvent(id string, data map[string]interface{}) *Event {
 	return &Event{
 		ID:   id,
 		Data: data,
+	}
+}
+
+// CreateTestEventWithMetadata creates a test event with data and metadata
+func CreateTestEventWithMetadata(id string, data map[string]interface{}, metadata map[string]interface{}) *Event {
+	return &Event{
+		ID:       id,
+		Data:     data,
+		Metadata: metadata,
 	}
 }
 
@@ -111,6 +120,15 @@ func CreateTestEventResponse(id string, data map[string]interface{}) *EventRespo
 	return &EventResponse{
 		ID:   id,
 		Data: data,
+	}
+}
+
+// CreateTestEventResponseWithMetadata creates a test event response with metadata
+func CreateTestEventResponseWithMetadata(id string, data map[string]interface{}, metadata map[string]interface{}) *EventResponse {
+	return &EventResponse{
+		ID:       id,
+		Data:     data,
+		Metadata: metadata,
 	}
 }
 
@@ -131,14 +149,14 @@ func CreateTestRegisterResult(outcome string) *RegisterResult {
 // WaitForCondition waits for a condition to be true with timeout
 func WaitForCondition(condition func() bool, timeout time.Duration, interval time.Duration) bool {
 	deadline := time.Now().Add(timeout)
-	
+
 	for time.Now().Before(deadline) {
 		if condition() {
 			return true
 		}
 		time.Sleep(interval)
 	}
-	
+
 	return false
 }
 

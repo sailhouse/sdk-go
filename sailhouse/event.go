@@ -12,8 +12,9 @@ type GetEventsResponse struct {
 }
 
 type EventResponse struct {
-	ID   string                 `json:"id"`
-	Data map[string]interface{} `json:"data"`
+	ID       string                 `json:"id"`
+	Data     map[string]interface{} `json:"data"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 type PublishResponse struct {
@@ -27,6 +28,7 @@ type WaitGroupInstanceResponse struct {
 type Event struct {
 	ID           string                 `json:"id"`
 	Data         map[string]interface{} `json:"data"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 	topic        string
 	subscription string
 	client       *SailhouseClient
