@@ -92,10 +92,18 @@ func (m *MockSailhouseServer) RegisterAdminHandler(topic, subscription string, r
 
 // CreateTestClient creates a client configured to use the mock server
 func (m *MockSailhouseServer) CreateTestClient() *SailhouseClient {
-	client := NewSailhouseClient("test-token")
-	// Override the base URL to point to our mock server
-	// We'll need to modify the client to support this
-	return client
+	return NewSailhouseClientWithOptions(SailhouseClientOptions{
+		Token:   "test-token",
+		BaseURL: m.URL,
+	})
+}
+
+// CreateTestClientWithBaseURL creates a client with a custom base URL
+func CreateTestClientWithBaseURL(token, baseURL string) *SailhouseClient {
+	return NewSailhouseClientWithOptions(SailhouseClientOptions{
+		Token:   token,
+		BaseURL: baseURL,
+	})
 }
 
 // CreateTestEvent creates a test event with data

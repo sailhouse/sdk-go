@@ -15,7 +15,7 @@ var _ = Describe("SailhouseClient", func() {
 
 	BeforeEach(func() {
 		mockServer = sailhouse.NewMockSailhouseServer()
-		client = sailhouse.NewSailhouseClient("test-token")
+		client = mockServer.CreateTestClient()
 	})
 
 	AfterEach(func() {

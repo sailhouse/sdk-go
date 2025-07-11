@@ -15,15 +15,17 @@ import (
 )
 
 type SailhouseClient struct {
-	client *http.Client
-	token  string
+	client  *http.Client
+	token   string
+	baseURL string
 }
 
 const BaseURL = "https://api.sailhouse.dev"
 
 type SailhouseClientOptions struct {
-	Client *http.Client
-	Token  string
+	Client  *http.Client
+	Token   string
+	BaseURL string
 }
 
 type Map map[string]any
@@ -41,9 +43,15 @@ func NewSailhouseClientWithOptions(opts SailhouseClientOptions) *SailhouseClient
 		}
 	}
 
+	baseURL := opts.BaseURL
+	if baseURL == "" {
+		baseURL = BaseURL
+	}
+
 	return &SailhouseClient{
-		client: opts.Client,
-		token:  opts.Token,
+		client:  opts.Client,
+		token:   opts.Token,
+		baseURL: baseURL,
 	}
 }
 
@@ -93,7 +101,7 @@ func WithTimeWindow(dur time.Duration) getOption {
 }
 
 func (c *SailhouseClient) PullEvent(ctx context.Context, topic, subscription string) (*Event, error) {
-	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events/pull", BaseURL, topic, subscription)
+	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events/pull", c.baseURL, topic, subscription)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
@@ -127,7 +135,7 @@ func (c *SailhouseClient) PullEvent(ctx context.Context, topic, subscription str
 }
 
 func (c *SailhouseClient) GetEvents(ctx context.Context, topic, subscription string, opts ...getOption) (GetEventsResponse, error) {
-	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events", BaseURL, topic, subscription)
+	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events", c.baseURL, topic, subscription)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
@@ -211,7 +219,7 @@ func WithTTL(ttl string) WaitOption {
 }
 
 func (c *SailhouseClient) Publish(ctx context.Context, topic string, data any, opts ...publishOpt) (*PublishResponse, error) {
-	endpoint := fmt.Sprintf("%s/topics/%s/events", BaseURL, topic)
+	endpoint := fmt.Sprintf("%s/topics/%s/events", c.baseURL, topic)
 
 	body := map[string]any{
 		"data": data,
@@ -261,7 +269,7 @@ func (c *SailhouseClient) Publish(ctx context.Context, topic string, data any, o
 }
 
 func (c *SailhouseClient) AcknowledgeMessage(ctx context.Context, topic string, subscription string, id string) error {
-	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events/%s", BaseURL, topic, subscription, id)
+	endpoint := fmt.Sprintf("%s/topics/%s/subscriptions/%s/events/%s", c.baseURL, topic, subscription, id)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, nil)
 	if err != nil {
@@ -414,7 +422,7 @@ func (c *SailhouseClient) Subscribe(ctx context.Context, topic string, subscript
 // It allows you to publish multiple events across different topics and wait for all of them to be processed before proceeding.
 func (c *SailhouseClient) Wait(ctx context.Context, topic string, events []WaitEvent, opts ...WaitOption) error {
 	// Create wait group instance
-	endpoint := fmt.Sprintf("%s/waitgroups/instances", BaseURL)
+	endpoint := fmt.Sprintf("%s/waitgroups/instances", c.baseURL)
 
 	body := map[string]any{
 		"topic": topic,
@@ -483,7 +491,7 @@ func (c *SailhouseClient) Wait(ctx context.Context, topic string, events []WaitE
 	}
 
 	// Mark wait group as in progress
-	endpoint = fmt.Sprintf("%s/waitgroups/instances/%s/events", BaseURL, waitGroupID)
+	endpoint = fmt.Sprintf("%s/waitgroups/instances/%s/events", c.baseURL, waitGroupID)
 
 	req, err = http.NewRequestWithContext(ctx, "PUT", endpoint, bytes.NewReader([]byte("{}")))
 	if err != nil {
