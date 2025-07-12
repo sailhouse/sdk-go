@@ -229,31 +229,3 @@ func handleOrderShipped(data map[string]interface{}) {
 	// Add your order tracking logic here
 }
 
-/*
-Example usage:
-
-1. Set your webhook secret:
-   export SAILHOUSE_WEBHOOK_SECRET="whsec_your_secret_here"
-
-2. Run the server:
-   go run main.go
-
-3. Test with curl (you'll need a valid signature):
-   curl -X POST http://localhost:8080/webhook \
-     -H "Content-Type: application/json" \
-     -H "Sailhouse-Signature: t=1699564800,v1=your_signature_here" \
-     -d '{"id":"evt_123","data":{"event_type":"user.created","user_id":"user_456","email":"test@example.com"},"timestamp":"2023-11-09T16:00:00Z"}'
-
-4. The server will:
-   - Verify the HMAC signature
-   - Parse the JSON payload
-   - Process the event based on event_type
-   - Return success or error response
-
-Important notes:
-- Always read the raw body before parsing JSON
-- Use the Sailhouse-Signature header for verification
-- Set appropriate tolerance for timestamp validation
-- Handle verification errors gracefully
-- Log verification failures for debugging
-*/

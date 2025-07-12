@@ -102,13 +102,12 @@ func main() {
 }
 
 func registerHandlers(subscriber *sailhouse.SailhouseSubscriber, stats *ProcessingStats) {
-	// Handler for user events
-	subscriber.Subscribe("user-events", "user-processor", func(ctx context.Context, event *sailhouse.Event) error {
+	// Handler for user registration events
+	subscriber.Subscribe("user-registrations", "registration-processor", func(ctx context.Context, event *sailhouse.Event) error {
 		stats.eventsProcessed.Add(1)
 
-		fmt.Printf("[USER] Processing event %s\n", event.ID)
+		fmt.Printf("[REGISTRATION] Processing event %s\n", event.ID)
 
-		// Parse event data
 		var eventData map[string]interface{}
 		err := event.As(&eventData)
 		if err != nil {
@@ -116,7 +115,6 @@ func registerHandlers(subscriber *sailhouse.SailhouseSubscriber, stats *Processi
 			return fmt.Errorf("failed to parse event data: %w", err)
 		}
 
-		// Handle different user event types
 		eventType, ok := eventData["type"].(string)
 		if !ok {
 			stats.handlerErrors.Add(1)
@@ -124,20 +122,54 @@ func registerHandlers(subscriber *sailhouse.SailhouseSubscriber, stats *Processi
 		}
 
 		switch eventType {
-		case "user.created":
-			return handleUserCreated(eventData, event.Metadata)
-		case "user.updated":
-			return handleUserUpdated(eventData, event.Metadata)
-		case "user.deleted":
-			return handleUserDeleted(eventData, event.Metadata)
+		case "user.signup":
+			return handleUserSignup(eventData, event.Metadata)
+		case "user.email_verified":
+			return handleEmailVerified(eventData, event.Metadata)
+		case "user.trial_started":
+			return handleTrialStarted(eventData, event.Metadata)
 		default:
-			fmt.Printf("[USER] Unknown event type: %s\n", eventType)
-			return nil // Don't fail on unknown events
+			fmt.Printf("[REGISTRATION] Unknown event type: %s\n", eventType)
+			return nil
 		}
 	})
 
-	// Handler for order events
-	subscriber.Subscribe("order-events", "order-processor", func(ctx context.Context, event *sailhouse.Event) error {
+	// Handler for payment and billing events
+	subscriber.Subscribe("payments", "payment-processor", func(ctx context.Context, event *sailhouse.Event) error {
+		stats.eventsProcessed.Add(1)
+
+		fmt.Printf("[PAYMENT] Processing event %s\n", event.ID)
+
+		var eventData map[string]interface{}
+		err := event.As(&eventData)
+		if err != nil {
+			stats.handlerErrors.Add(1)
+			return fmt.Errorf("failed to parse event data: %w", err)
+		}
+
+		eventType, ok := eventData["type"].(string)
+		if !ok {
+			stats.handlerErrors.Add(1)
+			return fmt.Errorf("missing or invalid event type")
+		}
+
+		switch eventType {
+		case "payment.succeeded":
+			return handlePaymentSucceeded(eventData, event.Metadata)
+		case "payment.failed":
+			return handlePaymentFailed(eventData, event.Metadata)
+		case "subscription.created":
+			return handleSubscriptionCreated(eventData, event.Metadata)
+		case "subscription.cancelled":
+			return handleSubscriptionCancelled(eventData, event.Metadata)
+		default:
+			fmt.Printf("[PAYMENT] Unknown event type: %s\n", eventType)
+			return nil
+		}
+	})
+
+	// Handler for order fulfillment events
+	subscriber.Subscribe("orders", "order-processor", func(ctx context.Context, event *sailhouse.Event) error {
 		stats.eventsProcessed.Add(1)
 
 		fmt.Printf("[ORDER] Processing event %s\n", event.ID)
@@ -156,157 +188,147 @@ func registerHandlers(subscriber *sailhouse.SailhouseSubscriber, stats *Processi
 		}
 
 		switch eventType {
-		case "order.created":
-			return handleOrderCreated(eventData, event.Metadata)
-		case "order.paid":
-			return handleOrderPaid(eventData, event.Metadata)
-		case "order.shipped":
-			return handleOrderShipped(eventData, event.Metadata)
-		case "order.delivered":
-			return handleOrderDelivered(eventData, event.Metadata)
+		case "order.accepted":
+			return handleOrderAccepted(eventData, event.Metadata)
+		case "order.processing":
+			return handleOrderProcessing(eventData, event.Metadata)
+		case "order.completed":
+			return handleOrderCompleted(eventData, event.Metadata)
+		case "order.refunded":
+			return handleOrderRefunded(eventData, event.Metadata)
 		default:
 			fmt.Printf("[ORDER] Unknown event type: %s\n", eventType)
 			return nil
 		}
 	})
-
-	// Handler for notification events (demonstrates error handling)
-	subscriber.Subscribe("notifications", "notification-processor", func(ctx context.Context, event *sailhouse.Event) error {
-		stats.eventsProcessed.Add(1)
-
-		fmt.Printf("[NOTIFICATION] Processing event %s\n", event.ID)
-
-		var eventData map[string]interface{}
-		err := event.As(&eventData)
-		if err != nil {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("failed to parse event data: %w", err)
-		}
-
-		// Simulate occasional failures for demonstration
-		if priority, ok := eventData["priority"].(string); ok && priority == "test-failure" {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("simulated processing failure for testing")
-		}
-
-		return handleNotification(eventData, event.Metadata)
-	})
 }
 
-// Event handlers
+// Event handlers for SaaS registration flow
 
-func handleUserCreated(data map[string]interface{}, metadata map[string]interface{}) error {
+func handleUserSignup(data map[string]interface{}, metadata map[string]interface{}) error {
 	userID := data["user_id"]
 	email := data["email"]
-	fmt.Printf("    → New user created: ID=%v, Email=%v\n", userID, email)
+	plan := data["plan"]
+	fmt.Printf("    → User signup: ID=%v, Email=%v, Plan=%v\n", userID, email, plan)
 
-	// Simulate processing time
 	time.Sleep(50 * time.Millisecond)
-
-	// Your business logic here:
-	// - Send welcome email
-	// - Update analytics
-	// - Sync with CRM
 
 	return nil
 }
 
-func handleUserUpdated(data map[string]interface{}, metadata map[string]interface{}) error {
+func handleEmailVerified(data map[string]interface{}, metadata map[string]interface{}) error {
 	userID := data["user_id"]
-	fmt.Printf("    → User updated: ID=%v\n", userID)
+	email := data["email"]
+	fmt.Printf("    → Email verified: ID=%v, Email=%v\n", userID, email)
 
 	time.Sleep(30 * time.Millisecond)
 
-	// Your business logic here:
-	// - Update search index
-	// - Sync with external services
-
 	return nil
 }
 
-func handleUserDeleted(data map[string]interface{}, metadata map[string]interface{}) error {
+func handleTrialStarted(data map[string]interface{}, metadata map[string]interface{}) error {
 	userID := data["user_id"]
-	fmt.Printf("    → User deleted: ID=%v\n", userID)
+	trialDays := data["trial_days"]
+	fmt.Printf("    → Trial started: User=%v, Days=%v\n", userID, trialDays)
 
 	time.Sleep(40 * time.Millisecond)
 
-	// Your business logic here:
-	// - Clean up user data
-	// - Cancel subscriptions
-	// - Update analytics
-
 	return nil
 }
 
-func handleOrderCreated(data map[string]interface{}, metadata map[string]interface{}) error {
-	orderID := data["order_id"]
+// Event handlers for payment processing
+
+func handlePaymentSucceeded(data map[string]interface{}, metadata map[string]interface{}) error {
+	paymentID := data["payment_id"]
 	amount := data["amount"]
-	fmt.Printf("    → Order created: ID=%v, Amount=%v\n", orderID, amount)
-
-	time.Sleep(100 * time.Millisecond)
-
-	// Your business logic here:
-	// - Validate order
-	// - Reserve inventory
-	// - Send confirmation email
-
-	return nil
-}
-
-func handleOrderPaid(data map[string]interface{}, metadata map[string]interface{}) error {
-	orderID := data["order_id"]
-	fmt.Printf("    → Order paid: ID=%v\n", orderID)
+	currency := data["currency"]
+	customerID := data["customer_id"]
+	fmt.Printf("    → Payment succeeded: ID=%v, Amount=%v %v, Customer=%v\n", 
+		paymentID, amount, currency, customerID)
 
 	time.Sleep(75 * time.Millisecond)
 
-	// Your business logic here:
-	// - Process payment
-	// - Update order status
-	// - Trigger fulfillment
-
 	return nil
 }
 
-func handleOrderShipped(data map[string]interface{}, metadata map[string]interface{}) error {
-	orderID := data["order_id"]
-	trackingNumber := data["tracking_number"]
-	fmt.Printf("    → Order shipped: ID=%v, Tracking=%v\n", orderID, trackingNumber)
+func handlePaymentFailed(data map[string]interface{}, metadata map[string]interface{}) error {
+	paymentID := data["payment_id"]
+	reason := data["failure_reason"]
+	customerID := data["customer_id"]
+	fmt.Printf("    → Payment failed: ID=%v, Reason=%v, Customer=%v\n", 
+		paymentID, reason, customerID)
 
 	time.Sleep(60 * time.Millisecond)
 
-	// Your business logic here:
-	// - Send shipping notification
-	// - Update tracking info
-	// - Schedule delivery notifications
-
 	return nil
 }
 
-func handleOrderDelivered(data map[string]interface{}, metadata map[string]interface{}) error {
-	orderID := data["order_id"]
-	fmt.Printf("    → Order delivered: ID=%v\n", orderID)
+func handleSubscriptionCreated(data map[string]interface{}, metadata map[string]interface{}) error {
+	subscriptionID := data["subscription_id"]
+	planID := data["plan_id"]
+	customerID := data["customer_id"]
+	fmt.Printf("    → Subscription created: ID=%v, Plan=%v, Customer=%v\n", 
+		subscriptionID, planID, customerID)
 
 	time.Sleep(80 * time.Millisecond)
 
-	// Your business logic here:
-	// - Send delivery confirmation
-	// - Request review
-	// - Update customer satisfaction metrics
+	return nil
+}
+
+func handleSubscriptionCancelled(data map[string]interface{}, metadata map[string]interface{}) error {
+	subscriptionID := data["subscription_id"]
+	reason := data["cancellation_reason"]
+	customerID := data["customer_id"]
+	fmt.Printf("    → Subscription cancelled: ID=%v, Reason=%v, Customer=%v\n", 
+		subscriptionID, reason, customerID)
+
+	time.Sleep(65 * time.Millisecond)
 
 	return nil
 }
 
-func handleNotification(data map[string]interface{}, metadata map[string]interface{}) error {
-	notificationType := data["type"]
-	recipient := data["recipient"]
-	fmt.Printf("    → Sending notification: Type=%v, To=%v\n", notificationType, recipient)
+// Event handlers for order fulfillment
 
-	time.Sleep(25 * time.Millisecond)
+func handleOrderAccepted(data map[string]interface{}, metadata map[string]interface{}) error {
+	orderID := data["order_id"]
+	customerID := data["customer_id"]
+	items := data["items"]
+	fmt.Printf("    → Order accepted: ID=%v, Customer=%v, Items=%v\n", 
+		orderID, customerID, items)
 
-	// Your business logic here:
-	// - Format notification
-	// - Send via appropriate channel (email, SMS, push)
-	// - Track delivery status
+	time.Sleep(100 * time.Millisecond)
+
+	return nil
+}
+
+func handleOrderProcessing(data map[string]interface{}, metadata map[string]interface{}) error {
+	orderID := data["order_id"]
+	status := data["status"]
+	fmt.Printf("    → Order processing: ID=%v, Status=%v\n", orderID, status)
+
+	time.Sleep(90 * time.Millisecond)
+
+	return nil
+}
+
+func handleOrderCompleted(data map[string]interface{}, metadata map[string]interface{}) error {
+	orderID := data["order_id"]
+	deliveryDate := data["delivery_date"]
+	fmt.Printf("    → Order completed: ID=%v, Delivered=%v\n", orderID, deliveryDate)
+
+	time.Sleep(70 * time.Millisecond)
+
+	return nil
+}
+
+func handleOrderRefunded(data map[string]interface{}, metadata map[string]interface{}) error {
+	orderID := data["order_id"]
+	refundAmount := data["refund_amount"]
+	reason := data["reason"]
+	fmt.Printf("    → Order refunded: ID=%v, Amount=%v, Reason=%v\n", 
+		orderID, refundAmount, reason)
+
+	time.Sleep(85 * time.Millisecond)
 
 	return nil
 }
@@ -325,40 +347,3 @@ func reportStats(ctx context.Context, stats *ProcessingStats) {
 	}
 }
 
-/*
-Example usage:
-
-1. Start the subscriber:
-   go run main.go -token="your-sailhouse-token" -processors=3
-
-2. The subscriber will:
-   - Connect to Sailhouse with your token
-   - Register handlers for user-events, order-events, and notifications topics
-   - Start 3 processors per subscription (9 total processors)
-   - Process events concurrently with automatic retries
-   - Report processing statistics every 10 seconds
-   - Handle graceful shutdown on SIGINT/SIGTERM
-
-3. Send test events to your topics to see the processing in action
-
-4. Stop gracefully with Ctrl+C
-
-Features demonstrated:
-- Multiple topic subscriptions with different handlers
-- Concurrent processing with configurable processor count
-- Error handling with retries and error reporting
-- Processing statistics and monitoring
-- Graceful shutdown handling
-- Event type routing within handlers
-- Simulated processing times and failure scenarios
-
-Production considerations:
-- Add proper logging with structured logs
-- Implement proper error tracking (e.g., Sentry)
-- Add metrics collection (e.g., Prometheus)
-- Configure appropriate retry counts and delays
-- Implement circuit breakers for external service calls
-- Add health check endpoints
-- Use proper configuration management
-- Implement dead letter queue handling for failed events
-*/

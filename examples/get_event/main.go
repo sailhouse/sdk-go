@@ -41,7 +41,7 @@ func main() {
 		fmt.Printf("Event Data: %v\n", data)
 
 		// Display metadata if present
-		if event.Metadata != nil && len(event.Metadata) > 0 {
+		if len(event.Metadata) > 0 {
 			fmt.Printf("Event Metadata: %v\n", event.Metadata)
 		} else {
 			fmt.Println("No metadata present")
