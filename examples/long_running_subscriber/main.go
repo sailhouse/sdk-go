@@ -102,108 +102,45 @@ func main() {
 }
 
 func registerHandlers(subscriber *sailhouse.SailhouseSubscriber, stats *ProcessingStats) {
-	// Handler for user registration events
-	subscriber.Subscribe("user-registrations", "registration-processor", func(ctx context.Context, event *sailhouse.Event) error {
-		stats.eventsProcessed.Add(1)
+	// User lifecycle events
+	subscriber.Subscribe("user.signup", "signup-processor", createEventHandler(stats, "USER", handleUserSignup))
+	subscriber.Subscribe("user.email_verified", "email-verification-processor", createEventHandler(stats, "USER", handleEmailVerified))
+	subscriber.Subscribe("user.trial_started", "trial-processor", createEventHandler(stats, "USER", handleTrialStarted))
 
-		fmt.Printf("[REGISTRATION] Processing event %s\n", event.ID)
+	// Payment events
+	subscriber.Subscribe("payment.succeeded", "payment-success-processor", createEventHandler(stats, "PAYMENT", handlePaymentSucceeded))
+	subscriber.Subscribe("payment.failed", "payment-failure-processor", createEventHandler(stats, "PAYMENT", handlePaymentFailed))
 
-		var eventData map[string]interface{}
-		err := event.As(&eventData)
-		if err != nil {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("failed to parse event data: %w", err)
-		}
+	// Subscription events
+	subscriber.Subscribe("subscription.created", "subscription-creation-processor", createEventHandler(stats, "SUBSCRIPTION", handleSubscriptionCreated))
+	subscriber.Subscribe("subscription.cancelled", "subscription-cancellation-processor", createEventHandler(stats, "SUBSCRIPTION", handleSubscriptionCancelled))
 
-		eventType, ok := eventData["type"].(string)
-		if !ok {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("missing or invalid event type")
-		}
-
-		switch eventType {
-		case "user.signup":
-			return handleUserSignup(eventData, event.Metadata)
-		case "user.email_verified":
-			return handleEmailVerified(eventData, event.Metadata)
-		case "user.trial_started":
-			return handleTrialStarted(eventData, event.Metadata)
-		default:
-			fmt.Printf("[REGISTRATION] Unknown event type: %s\n", eventType)
-			return nil
-		}
-	})
-
-	// Handler for payment and billing events
-	subscriber.Subscribe("payments", "payment-processor", func(ctx context.Context, event *sailhouse.Event) error {
-		stats.eventsProcessed.Add(1)
-
-		fmt.Printf("[PAYMENT] Processing event %s\n", event.ID)
-
-		var eventData map[string]interface{}
-		err := event.As(&eventData)
-		if err != nil {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("failed to parse event data: %w", err)
-		}
-
-		eventType, ok := eventData["type"].(string)
-		if !ok {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("missing or invalid event type")
-		}
-
-		switch eventType {
-		case "payment.succeeded":
-			return handlePaymentSucceeded(eventData, event.Metadata)
-		case "payment.failed":
-			return handlePaymentFailed(eventData, event.Metadata)
-		case "subscription.created":
-			return handleSubscriptionCreated(eventData, event.Metadata)
-		case "subscription.cancelled":
-			return handleSubscriptionCancelled(eventData, event.Metadata)
-		default:
-			fmt.Printf("[PAYMENT] Unknown event type: %s\n", eventType)
-			return nil
-		}
-	})
-
-	// Handler for order fulfillment events
-	subscriber.Subscribe("orders", "order-processor", func(ctx context.Context, event *sailhouse.Event) error {
-		stats.eventsProcessed.Add(1)
-
-		fmt.Printf("[ORDER] Processing event %s\n", event.ID)
-
-		var eventData map[string]interface{}
-		err := event.As(&eventData)
-		if err != nil {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("failed to parse event data: %w", err)
-		}
-
-		eventType, ok := eventData["type"].(string)
-		if !ok {
-			stats.handlerErrors.Add(1)
-			return fmt.Errorf("missing or invalid event type")
-		}
-
-		switch eventType {
-		case "order.accepted":
-			return handleOrderAccepted(eventData, event.Metadata)
-		case "order.processing":
-			return handleOrderProcessing(eventData, event.Metadata)
-		case "order.completed":
-			return handleOrderCompleted(eventData, event.Metadata)
-		case "order.refunded":
-			return handleOrderRefunded(eventData, event.Metadata)
-		default:
-			fmt.Printf("[ORDER] Unknown event type: %s\n", eventType)
-			return nil
-		}
-	})
+	// Order events
+	subscriber.Subscribe("order.accepted", "order-acceptance-processor", createEventHandler(stats, "ORDER", handleOrderAccepted))
+	subscriber.Subscribe("order.processing", "order-processing-processor", createEventHandler(stats, "ORDER", handleOrderProcessing))
+	subscriber.Subscribe("order.completed", "order-completion-processor", createEventHandler(stats, "ORDER", handleOrderCompleted))
+	subscriber.Subscribe("order.refunded", "order-refund-processor", createEventHandler(stats, "ORDER", handleOrderRefunded))
 }
 
-// Event handlers for SaaS registration flow
+// createEventHandler creates a reusable event handler wrapper
+func createEventHandler(stats *ProcessingStats, category string, handler func(map[string]interface{}, map[string]interface{}) error) func(context.Context, *sailhouse.Event) error {
+	return func(ctx context.Context, event *sailhouse.Event) error {
+		stats.eventsProcessed.Add(1)
+
+		fmt.Printf("[%s] Processing event %s\n", category, event.ID)
+
+		var eventData map[string]interface{}
+		err := event.As(&eventData)
+		if err != nil {
+			stats.handlerErrors.Add(1)
+			return fmt.Errorf("failed to parse event data: %w", err)
+		}
+
+		return handler(eventData, event.Metadata)
+	}
+}
+
+// Event handlers for user lifecycle
 
 func handleUserSignup(data map[string]interface{}, metadata map[string]interface{}) error {
 	userID := data["user_id"]
