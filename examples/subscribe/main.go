@@ -40,8 +40,5 @@ func main() {
 		ExitOnErr: true,
 	})
 
-	select {
-	case <-ctx.Done():
-		return
-	}
+	<-ctx.Done()
 }

@@ -2,15 +2,58 @@
 version: 3
 
 tasks:
+  # Testing tasks
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./sailhouse/...
+
+  test-ginkgo:
+    desc: Run tests using Ginkgo test runner
+    cmds:
+      - ginkgo -v ./sailhouse/
+
+  # Build tasks
+  build:
+    desc: Build all examples
+    cmds:
+      - go build ./examples/...
+
+  # Example tasks
   example-subscribe:
     dir: ./examples
     dotenv:
       - ".env"
     cmds:
       - go run ./subscribe/
+
   example-publish:
     dir: ./examples
     dotenv:
       - ".env"
     cmds:
       - go run ./publish_event/
+
+  example-push-verification:
+    desc: Run push verification webhook server example
+    dir: ./examples
+    dotenv:
+      - ".env"
+    cmds:
+      - go run ./push_verification/
+
+  example-advanced-subscriptions:
+    desc: Run advanced subscriptions example
+    dir: ./examples
+    dotenv:
+      - ".env"
+    cmds:
+      - go run ./advanced_subscriptions/
+
+  example-long-running-subscriber:
+    desc: Run long-running subscriber example
+    dir: ./examples
+    dotenv:
+      - ".env"
+    cmds:
+      - go run ./long_running_subscriber/

@@ -34,7 +34,7 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println(fmt.Sprintf("Event: %v", data))
+			fmt.Printf("Event: %v\n", data)
 			err = event.Ack(ctx)
 			if err != nil {
 				panic(err)
